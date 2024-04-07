@@ -292,7 +292,7 @@ grpc::Status MLRA::codeGen(grpc::ServerContext *context,
     SmallVector<unsigned, 2> NewVRegs;
     LLVM_DEBUG(errs() << "==========================BEFORE "
                          "SPLITTING==================================\n");
-    MF->dump();
+    MF->print(llvm::errs(), nullptr);
     LLVM_DEBUG(
         errs()
         << "============================================================\n");
@@ -715,7 +715,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
                     << "\n");
 
   LiveInterval *VirtReg = &LIS->getInterval(splitReg);
-  LLVM_DEBUG(VirtReg->dump());
+  LLVM_DEBUG(VirtReg->print(llvm::errs(), nullptr));
   assert(!VRM->hasPhys(VirtReg->reg) && "Register already assigned");
 
   if (MRI->reg_nodbg_empty(VirtReg->reg)) {
@@ -888,7 +888,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
     return false;
   }
 
-  LLVM_DEBUG(errs() << " Splitting at: "; idx.dump();
+  LLVM_DEBUG(errs() << " Splitting at: "; idx.print(llvm::errs());
              LIS->getInstructionFromIndex(idx)->dump());
   // SlotIndex LSP = SA->getLastSplitPoint(MBB->getNumber());
   // errs() << "Slot index for valid splitpoint: ";
@@ -934,7 +934,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
     LLVM_DEBUG(errs() << removethisIdx
                       << ". processing ub: " << UB.MBB->getName() << "\n");
     removethisIdx++;
-    LLVM_DEBUG(errs() << "--\n"; UB.FirstInstr.dump(); UB.LastInstr.dump());
+    LLVM_DEBUG(errs() << "--\n"; UB.FirstInstr.print(llvm::errs()); UB.LastInstr.print(llvm::errs()));
     LLVM_DEBUG(errs() << "--\n");
     if (DomTree->dominates(MBB, UB.MBB)) {
       LLVM_DEBUG(errs() << "\t It dominates \n");
@@ -986,7 +986,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
     } else if (prevStart.isValid() && prevEnd.isValid() && !lastNoDom) {
       LLVM_DEBUG(errs() << "\t\t Inside Else if\n");
       LLVM_DEBUG(errs() << "pushing newLR in elseif - ");
-      LLVM_DEBUG(prevStart.dump(); prevEnd.dump());
+      LLVM_DEBUG(prevStart.print(llvm::errs()); prevEnd.print(llvm::errs()));
       newLRIntervals.push_back(std::make_pair(prevStart, prevEnd));
       endBIs.push_back(prevBI);
       lastNoDom = true;
@@ -997,7 +997,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
   }
   if (!lastNoDom && prevStart.isValid() && prevEnd.isValid()) {
     LLVM_DEBUG(errs() << "pushing newLR in one last time - ");
-    LLVM_DEBUG(prevStart.dump(); prevEnd.dump());
+    LLVM_DEBUG(prevStart.print(llvm::errs()); prevEnd.print(llvm::errs()));
     newLRIntervals.push_back(std::make_pair(prevStart, prevEnd));
     endBIs.push_back(prevBI);
   }
@@ -1019,7 +1019,7 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
   int itr = -1;
   for (auto i : newLRIntervals) {
     auto endBI = endBIs[++itr];
-    LLVM_DEBUG(i.first.dump(); i.second.dump());
+    LLVM_DEBUG(i.first.print(llvm::errs()); i.second.print(llvm::errs()));
     if (i.first.getBaseIndex() ==
         i.second.getBaseIndex()) // Only one instruction in the splitrange
     {
@@ -1036,18 +1036,18 @@ bool MLRA::splitVirtReg(unsigned splitRegIdx, int splitPoint,
     auto thisMBBLastIdx = LIS->getMBBEndIdx(LIS->getMBBFromIndex(i.second));
     auto tempUses = SA->getUseSlots();
     LLVM_DEBUG(errs() << "Dumping last use index: ");
-    tempUses.back().dump();
+    tempUses.back().print(llvm::errs());
     LLVM_DEBUG(errs() << "New interval added is: \n");
     if (itr >= (newLRIntervals.size() - 1) &&
         (tempUses.back() < thisMBBLastIdx)) {
       // SlotIndex SegStop = SE->leaveIntvAfter(VirtReg->endIndex());
       // SE->useIntv(SegStart, SegStop);
       SE->useIntv(SegStart, VirtReg->endIndex());
-      LLVM_DEBUG(SegStart.dump(); VirtReg->endIndex().dump());
+      LLVM_DEBUG(SegStart.print(llvm::errs()); VirtReg->endIndex().print(llvm::errs()));
     } else {
       SlotIndex SegStop = SE->leaveIntvAfter(i.second);
       SE->useIntv(SegStart, SegStop);
-      LLVM_DEBUG(SegStart.dump(); i.second.dump());
+      LLVM_DEBUG(SegStart.print(llvm::errs()); i.second.print(llvm::errs()));
     }
 
     LLVM_DEBUG(errs() << "split end\n");
@@ -1847,7 +1847,7 @@ void MLRA::printRegisterProfile() const {
     LLVM_DEBUG(errs() << "cls =" << rp.cls << "\n");
     if (!rp.cls.equals("Phy")) {
       unsigned step = TRI->getNumRegs() + 1;
-      LIS->getInterval(Register::index2VirtReg(rpi.first - step)).dump();
+      LIS->getInterval(Register::index2VirtReg(rpi.first - step)).print(llvm::errs());
     }
     LLVM_DEBUG(errs() << "[" << MF->getName() << "]Interferences: ");
 
@@ -2336,7 +2336,7 @@ void MLRA::juggleAllocation(int seed, int maxTries,
       Matrix->invalidateVirtRegs();
       for (auto reg : mlAllocatedRegs) {
         LiveInterval *VirtReg = &LIS->getInterval(reg);
-        LLVM_DEBUG(VirtReg->dump());
+        LLVM_DEBUG(VirtReg->print(llvm::errs(), nullptr));
         // if(VRM->hasPhysReg(VirtReg))
         Matrix->unassign(*VirtReg);
       }

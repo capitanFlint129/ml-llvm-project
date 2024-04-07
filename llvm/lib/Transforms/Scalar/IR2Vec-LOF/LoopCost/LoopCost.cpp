@@ -184,7 +184,7 @@ bool LoopCost::runOnFunction(Function &F) {
     }
 
     errs() << "loop ID: " << L->getLoopID() << "\n";
-    L->dump();
+    L->print(llvm::errs());
     dbgs() << "VF: " << VF << "\n";
     dbgs() << "IF: " << IF << "\n";
     dbgs() << "TC: " << TripCount << "\n";
