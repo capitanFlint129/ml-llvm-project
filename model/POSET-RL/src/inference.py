@@ -18,32 +18,23 @@
 #                              --mca_reward_thresh 0.2
 
 import argparse
-import numpy as np
-import argparse
-import os
-
 # import utils
 import logging
-import time
+import sys
 
+import numpy as np
 import ray
-from ray import tune
-from ray.rllib.agents import ppo
-from ray.rllib.agents import dqn
 from ray.rllib.agents.dqn import DQNTrainer, DEFAULT_CONFIG
-from Environment_pipe import PhaseOrder
 from ray.rllib.models import ModelCatalog
-from model import CustomPhaseOrderModel
 from ray.tune.registry import register_env
-from datetime import datetime
+
+from Environment_pipe import PhaseOrder
+from model import CustomPhaseOrderModel
 from po_config import BUILD_DIR
 
-import sys
 sys.path.append(f"{BUILD_DIR}/tools/MLCompilerBridge/Python-Utilities")
 import posetRL_pb2_grpc, posetRL_pb2
 from compilerinterface import GrpcCompilerInterface
-
-from Filesystem import *
 
 logger = logging.getLogger(__file__)
 logging.basicConfig(
@@ -54,12 +45,9 @@ logging.basicConfig(
 
 import networkx
 from networkx.readwrite import json_graph
-import json
 import torch
 import pydot
 
-import grpc
-from concurrent import futures
 import traceback
 
 parser = argparse.ArgumentParser()
@@ -93,12 +81,30 @@ parser.add_argument(
     choices=["json", "protobuf", "bytes"],
     help="Data format to use for communication",
 )
-parser.add_argument("--pipe_name",type=str,help="String Pipe name",default="posetrl_pipe") 
-parser.add_argument("--use_grpc", action='store_true', help = "Use grpc communication", required=False, default=False)
-parser.add_argument("--export_onnx", action="store_true", help="Export the model to ONNX")
+parser.add_argument(
+    "--pipe_name", type=str, help="String Pipe name", default="posetrl_pipe"
+)
+parser.add_argument(
+    "--use_grpc",
+    action="store_true",
+    help="Use grpc communication",
+    required=False,
+    default=False,
+)
+parser.add_argument(
+    "--export_onnx", action="store_true", help="Export the model to ONNX"
+)
+
 
 class PhaseOrderInference:
-    def __init__(self, model_path, use_pipe=False, use_grpc=False, data_format="json", export_onnx=False):
+    def __init__(
+        self,
+        model_path,
+        use_pipe=False,
+        use_grpc=False,
+        data_format="json",
+        export_onnx=False,
+    ):
         print("use_pipe {}".format(use_pipe))
         logdir = "/tmp"
         logger = logging.getLogger(__file__)
@@ -145,14 +151,14 @@ class PhaseOrderInference:
                     "use_grpc": use_grpc,
                     "server_port": args.server_port,
                     "pipe_name": args.pipe_name,
-                    "export_onnx": export_onnx
+                    "export_onnx": export_onnx,
                 },
                 "framework": "torch",
                 "explore": False,
                 "num_workers": 0,
                 "train_batch_size": 1,
             },
-            **cfg
+            **cfg,
         )
 
         def env_creator(env_config):
@@ -171,8 +177,15 @@ class PhaseOrderInference:
 
         # Dump the onnx model from the checkpoint
         if args.export_onnx:
-            torch.onnx.export(self.train_agent.get_policy().model, ({"obs": torch.randn(1, 334)}, {}), export_params=True, f="/path/to/ml-llvm-project/model/POSET-RL/onnx-model/posetrl_model.onnx", verbose=True, input_names=["obs"], output_names=["output"])
-        
+            torch.onnx.export(
+                self.train_agent.get_policy().model,
+                ({"obs": torch.randn(1, 334)}, {}),
+                export_params=True,
+                f="/path/to/ml-llvm-project/model/POSET-RL/onnx-model/posetrl_model.onnx",
+                verbose=True,
+                input_names=["obs"],
+                output_names=["output"],
+            )
 
     def dot_to_json(self, dot_):
         py_dot_graph = pydot.graph_from_dot_data(dot_)[0]
@@ -183,7 +196,7 @@ class PhaseOrderInference:
     # Predict best optimization sequence for the given LLVM IR
     def run_predict(self, test_file=None):
         env = PhaseOrder(self.config["env_config"])
-    
+
         print("test_file {}".format(test_file))
         state = env.reset(test_file)
         score = 0
@@ -205,7 +218,8 @@ class PhaseOrderInference:
                 break
 
         return reward, response
-    
+
+
 class service_server(posetRL_pb2_grpc.PosetRLService):
     def __init__(self, inference_obj):
         self.inference_obj = inference_obj
@@ -213,8 +227,8 @@ class service_server(posetRL_pb2_grpc.PosetRLService):
         self.state = None
         self.env = None
         self.action = None
-        
-    def getAdvice(self, request, context):        
+
+    def getAdvice(self, request, context):
         try:
             done = False
             if self.new_file:
@@ -224,22 +238,20 @@ class service_server(posetRL_pb2_grpc.PosetRLService):
                 print("Episode Started")
             else:
                 self.env.embedding = np.array(request.embedding)
-                self.state, reward, done, response  = self.env.step(self.action)
+                self.state, reward, done, response = self.env.step(self.action)
             if not done:
-                self.action = self.inference_obj.train_agent.compute_action(self.state) 
-                reply=posetRL_pb2.ActionRequest(action=self.action.item())
+                self.action = self.inference_obj.train_agent.compute_action(self.state)
+                reply = posetRL_pb2.ActionRequest(action=self.action.item())
             else:
-                reply=posetRL_pb2.ActionRequest(action=-1)
+                reply = posetRL_pb2.ActionRequest(action=-1)
                 self.new_file = True
                 print("Episode Finished")
             return reply
         except:
-            print('Error')
+            print("Error")
             traceback.print_exc()
-            reply=posetRL_pb2.ActionRequest(action=-1)
-            return reply    
-        
-        
+            reply = posetRL_pb2.ActionRequest(action=-1)
+            return reply
 
 
 if __name__ == "__main__":
@@ -257,9 +269,13 @@ if __name__ == "__main__":
             reward, response = inference_obj.run_predict()
     elif args.use_grpc:
         # ray.init()
-        compiler_interface = GrpcCompilerInterface(mode = 'server', add_server_method=posetRL_pb2_grpc.add_PosetRLServiceServicer_to_server, grpc_service_obj=service_server(inference_obj), hostport= args.server_port)
+        compiler_interface = GrpcCompilerInterface(
+            mode="server",
+            add_server_method=posetRL_pb2_grpc.add_PosetRLServiceServicer_to_server,
+            grpc_service_obj=service_server(inference_obj),
+            hostport=args.server_port,
+        )
         compiler_interface.start_server()
-        
+
     else:
         print("Please use options use_grpc or use_pipe")
-        
