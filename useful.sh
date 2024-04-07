@@ -2,6 +2,7 @@ export ONNX_DIR=~/onnxruntime-linux-x64-1.16.3
 export LD_LIBRARY_PATH=${ONNX_DIR}:$LD_LIBRARY_PATH
 export LIBRARY_PATH=${ONNX_DIR}:$LIBRARY_PATH
 export PATH=${ONNX_DIR}/include:${ONNX_DIR}/lib:$PATH
+export LD_LIBRARY_PATH=${ONNX_DIR}/lib/:$LD_LIBRARY_PATH
 
 
 export MY_INSTALL_DIR_GRPC=$HOME/.local
